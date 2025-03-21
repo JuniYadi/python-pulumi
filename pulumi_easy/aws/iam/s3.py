@@ -1,5 +1,5 @@
 import pulumi_aws as aws
-from iam import IamManager
+from .iam import IamManager
 
 class IamRoleS3Manager(IamManager):  
     """
