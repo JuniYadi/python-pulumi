@@ -48,19 +48,15 @@ fi
 # Update version in pyproject.toml
 if [ -f "$PYPROJECT_FILE" ]; then
     echo "Updating version in $PYPROJECT_FILE"
-    current_version=$(grep 'version\s*=' "$PYPROJECT_FILE" | head -1 | cut -d'"' -f2)
-    new_version=$(increment_version "$current_version")
-    sed -i '' "s/version = \"$current_version\"/version = \"$new_version\"/" "$PYPROJECT_FILE"
-    echo "Updated $PYPROJECT_FILE: $current_version -> $new_version"
+    sed -i '' "s/version = \"$CURRENT_VERSION_PYPROJECT\"/version = \"$NEW_VERSION\"/" "$PYPROJECT_FILE"
+    echo "Updated $PYPROJECT_FILE: $CURRENT_VERSION_PYPROJECT -> $NEW_VERSION"
 fi
 
 # Update version in setup.cfg
 if [ -f "$SETUP_FILE" ]; then
     echo "Updating version in $SETUP_FILE"
-    current_version=$(grep 'version\s*=' "$SETUP_FILE" | head -1 | cut -d'=' -f2 | tr -d ' ')
-    new_version=$(increment_version "$current_version")
-    sed -i '' "s/version = $current_version/version = $new_version/" "$SETUP_FILE"
-    echo "Updated $SETUP_FILE: $current_version -> $new_version"
+    sed -i '' "s/version = $CURRENT_VERSION_SETUP/version = $NEW_VERSION/" "$SETUP_FILE"
+    echo "Updated $SETUP_FILE: $CURRENT_VERSION_SETUP -> $NEW_VERSION"
 fi
 
 echo "Updated version to $NEW_VERSION in both files"
