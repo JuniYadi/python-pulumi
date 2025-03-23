@@ -33,12 +33,7 @@ jobs:
             - setup.cfg
 
       - name: Create tag
-        uses: actions/github-script@v7
+        uses: actions-ecosystem/action-push-tag@v1
         with:
-          script: |
-            github.rest.git.createRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: 'refs/tags/v${{ steps.bump.outputs.new_version }}',
-              sha: context.sha
-            })
+          tag: v${{ steps.bump.outputs.new_version }}
+          message: "Bump version to ${{ steps.bump.outputs.new_version }}"
