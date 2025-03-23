@@ -15,6 +15,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Check Dir
+        run: ls -lha
+
       - name: Bump version to Minor
         id: bump
         run: |
@@ -33,7 +36,12 @@ jobs:
             - setup.cfg
 
       - name: Create tag
-        uses: actions-ecosystem/action-push-tag@v1
+        uses: actions/github-script@v7
         with:
-          tag: v${{ steps.bump.outputs.new_version }}
-          message: "Bump version to ${{ steps.bump.outputs.new_version }}"
+          script: |
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'refs/tags/v${{ steps.bump.outputs.new_version }}',
+              sha: context.sha
+            })
