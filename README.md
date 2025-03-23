@@ -52,6 +52,17 @@ The library currently supports the following AWS components:
 |--------|-------------|
 | `create_iam_ec2_s3(name, bucket_resources, bucket_permissions, description, services)` | Creates an IAM role and policy for EC2 instances to access S3 buckets |
 
+### EC2 Management
+
+#### EC2Manager Class
+
+| Method | Description |
+|--------|-------------|
+| `get_ubuntu_ami(version, arch)` | Gets the latest Ubuntu AMI ID for a specified version and architecture |
+| `create_key_pair(name, public_key)` | Creates an EC2 key pair using a provided public key |
+| `create_security_group(name, description)` | Creates a security group with SSH access |
+| `create_ubuntu_instance(name, storage, version, arch, instance_type, ssh_key_name)` | Creates an Ubuntu EC2 instance with specified parameters |
+
 ## Usage Examples
 
 ### Create an IAM Role for EC2 to Access S3
@@ -71,6 +82,33 @@ role = iam_manager.create_iam_ec2_s3(
     ]
 )
 ```
+
+### Create an Ubuntu EC2 Instance
+
+```python
+from pulumi_easy.aws.ec2.ec2 import EC2Manager
+
+# Initialize the manager
+ec2_manager = EC2Manager()
+
+# Create a key pair
+key_pair = ec2_manager.create_key_pair(
+    name="my-key",
+    public_key="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... user@hostname"
+)
+
+# Create an Ubuntu instance
+instance = ec2_manager.create_ubuntu_instance(
+    name="web-server",
+    storage=20,                  # 20 GB root volume
+    version="22.04",             # Ubuntu version
+    arch="amd64",                # Architecture
+    instance_type="t2.micro",    # Instance type
+    ssh_key_name=key_pair.key_name
+)
+```
+
+See more examples in the [documentation](docs).
 
 ## License
 
