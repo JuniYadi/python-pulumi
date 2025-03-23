@@ -1,0 +1,115 @@
+# Pulumi Easy
+
+A streamlined Python library for AWS infrastructure provisioning using Pulumi.
+
+## Overview
+
+`pulumi-easy` is a Python package that simplifies AWS infrastructure-as-code using Pulumi. It provides higher-level abstractions that make it easier to create common AWS resources without having to write boilerplate code.
+
+## Installation
+
+```bash
+# Using pip
+pip install pulumi-easy
+
+# Using poetry
+poetry add pulumi-easy
+
+# Using uv
+uv add pulumi-easy
+```
+
+## Requirements
+
+- Python 3.12+
+- Pulumi CLI
+- AWS credentials configured
+
+## Benefits
+
+- **Simplified Syntax**: Create AWS resources with less code and cleaner APIs
+- **Best Practices Built-in**: IAM policies, security groups, and other resources follow AWS best practices
+- **Type Safety**: Python type hints for better IDE integration and error detection
+- **Modular Design**: Use only what you need from the library
+- **Production-Ready**: Designed to be used in real-world projects
+
+## Features
+
+The library currently supports the following AWS components:
+
+### IAM Management
+
+#### IamManager Class
+
+| Method | Description |
+|--------|-------------|
+| `get_assume_role_policy(service_identifiers)` | Creates an assume role policy document for specified AWS services |
+| `create_iam_role_with_policy(name, assume_role_services, policy_document, description)` | Creates an IAM role with the specified policy and assume role configuration |
+
+#### IamRoleS3Manager Class
+
+| Method | Description |
+|--------|-------------|
+| `create_iam_ec2_s3(name, bucket_resources, bucket_permissions, description, services)` | Creates an IAM role and policy for EC2 instances to access S3 buckets |
+
+### EC2 Management
+
+#### EC2Manager Class
+
+| Method | Description |
+|--------|-------------|
+| `get_ubuntu_ami(version, arch)` | Gets the latest Ubuntu AMI ID for a specified version and architecture |
+| `create_key_pair(name, public_key)` | Creates an EC2 key pair using a provided public key |
+| `create_security_group(name, description)` | Creates a security group with SSH access |
+| `create_ubuntu_instance(name, storage, version, arch, instance_type, ssh_key_name)` | Creates an Ubuntu EC2 instance with specified parameters |
+
+## Usage Examples
+
+### Create an IAM Role for EC2 to Access S3
+
+```python
+from pulumi_easy.aws.iam.s3 import IamRoleS3Manager
+
+# Initialize the manager
+iam_manager = IamRoleS3Manager()
+
+# Create an IAM role for EC2 to access specific S3 buckets
+role = iam_manager.create_iam_ec2_s3(
+    name="my-ec2-s3-role",
+    bucket_resources=[
+        "arn:aws:s3:::my-bucket/*",
+        "arn:aws:s3:::my-bucket"
+    ]
+)
+```
+
+### Create an Ubuntu EC2 Instance
+
+```python
+from pulumi_easy.aws.ec2.ec2 import EC2Manager
+
+# Initialize the manager
+ec2_manager = EC2Manager()
+
+# Create a key pair
+key_pair = ec2_manager.create_key_pair(
+    name="my-key",
+    public_key="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... user@hostname"
+)
+
+# Create an Ubuntu instance
+instance = ec2_manager.create_ubuntu_instance(
+    name="web-server",
+    storage=20,                  # 20 GB root volume
+    version="22.04",             # Ubuntu version
+    arch="amd64",                # Architecture
+    instance_type="t2.micro",    # Instance type
+    ssh_key_name=key_pair.key_name
+)
+```
+
+See more examples in the [documentation](docs).
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

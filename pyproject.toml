@@ -3,7 +3,7 @@ name = "pulumi-easy"
 version = "0.3.1"
 description = "Add your description here"
 requires-python = ">=3.12"
-dependencies = [
+optional-dependencies = [
     "pulumi>=3.0.0,<4.0.0",
     "pulumi-aws>=6.0.2,<7.0.0",
 ]
@@ -23,3 +23,6 @@ keywords = ["pulumi", "aws", "infrastructure-as-code"]
 [build-system]
 requires = ["setuptools", "wheel", "uv"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = {find = {exclude = ["manual", "docs"]}}

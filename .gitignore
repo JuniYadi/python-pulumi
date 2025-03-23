@@ -1,0 +1,9 @@
+*.pyc
+venv/
+Pulumi.*.yaml
+Pulumi.yaml
+requirements.txt
+.idea
+main.py
+__main__.py
+uv.lock
