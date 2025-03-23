@@ -3,10 +3,12 @@ name = "pulumi-easy"
 version = "0.3.1"
 description = "Add your description here"
 requires-python = ">=3.12"
-optional-dependencies = [
-    "pulumi>=3.0.0,<4.0.0",
-    "pulumi-aws>=6.0.2,<7.0.0",
-]
+optional-dependencies = {
+    "dev": [
+        "pulumi>=3.0.0,<4.0.0",
+        "pulumi-aws>=6.0.2,<7.0.0",
+    ]
+}
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
