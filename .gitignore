@@ -1,6 +1,7 @@
 *.pyc
 venv/
-Pulumi*
+Pulumi.*.yaml
+Pulumi.yaml
 requirements.txt
 .idea
 main.py
