@@ -1,0 +1,77 @@
+# Pulumi Easy
+
+A streamlined Python library for AWS infrastructure provisioning using Pulumi.
+
+## Overview
+
+`pulumi-easy` is a Python package that simplifies AWS infrastructure-as-code using Pulumi. It provides higher-level abstractions that make it easier to create common AWS resources without having to write boilerplate code.
+
+## Installation
+
+```bash
+# Using pip
+pip install pulumi-easy
+
+# Using poetry
+poetry add pulumi-easy
+
+# Using uv
+uv add pulumi-easy
+```
+
+## Requirements
+
+- Python 3.12+
+- Pulumi CLI
+- AWS credentials configured
+
+## Benefits
+
+- **Simplified Syntax**: Create AWS resources with less code and cleaner APIs
+- **Best Practices Built-in**: IAM policies, security groups, and other resources follow AWS best practices
+- **Type Safety**: Python type hints for better IDE integration and error detection
+- **Modular Design**: Use only what you need from the library
+- **Production-Ready**: Designed to be used in real-world projects
+
+## Features
+
+The library currently supports the following AWS components:
+
+### IAM Management
+
+#### IamManager Class
+
+| Method | Description |
+|--------|-------------|
+| `get_assume_role_policy(service_identifiers)` | Creates an assume role policy document for specified AWS services |
+| `create_iam_role_with_policy(name, assume_role_services, policy_document, description)` | Creates an IAM role with the specified policy and assume role configuration |
+
+#### IamRoleS3Manager Class
+
+| Method | Description |
+|--------|-------------|
+| `create_iam_ec2_s3(name, bucket_resources, bucket_permissions, description, services)` | Creates an IAM role and policy for EC2 instances to access S3 buckets |
+
+## Usage Examples
+
+### Create an IAM Role for EC2 to Access S3
+
+```python
+from pulumi_easy.aws.iam.s3 import IamRoleS3Manager
+
+# Initialize the manager
+iam_manager = IamRoleS3Manager()
+
+# Create an IAM role for EC2 to access specific S3 buckets
+role = iam_manager.create_iam_ec2_s3(
+    name="my-ec2-s3-role",
+    bucket_resources=[
+        "arn:aws:s3:::my-bucket/*",
+        "arn:aws:s3:::my-bucket"
+    ]
+)
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
