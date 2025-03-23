@@ -42,12 +42,22 @@ fi
 
 # Update version in pyproject.toml
 if [ -f "$PYPROJECT_FILE" ]; then
-    sed -i '' "s/version = \"$CURRENT_VERSION_PYPROJECT\"/version = \"$NEW_VERSION\"/" "$PYPROJECT_FILE"
+    # Use OS-agnostic sed command 
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/version = \"$CURRENT_VERSION_PYPROJECT\"/version = \"$NEW_VERSION\"/" "$PYPROJECT_FILE"
+    else
+        sed -i "s/version = \"$CURRENT_VERSION_PYPROJECT\"/version = \"$NEW_VERSION\"/" "$PYPROJECT_FILE"
+    fi
 fi
 
 # Update version in setup.cfg
 if [ -f "$SETUP_FILE" ]; then
-    sed -i '' "s/version = $CURRENT_VERSION_SETUP/version = $NEW_VERSION/" "$SETUP_FILE"
+    # Use OS-agnostic sed command
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/version = $CURRENT_VERSION_SETUP/version = $NEW_VERSION/" "$SETUP_FILE"
+    else
+        sed -i "s/version = $CURRENT_VERSION_SETUP/version = $NEW_VERSION/" "$SETUP_FILE"
+    fi
 fi
 
 echo $NEW_VERSION
