@@ -11,6 +11,8 @@ from . import utils
 
 # Import and re-export commonly used classes for convenience
 from .aws.ec2.ec2 import EC2Manager
+from .aws.ec2.ec2_ubuntu import EC2Ubuntu
+from .aws.ec2.ec2_al import EC2AL
 from .aws.iam.iam import IamManager
 from .aws.iam.s3 import IamRoleS3Manager
 from .utils.ip import get_my_ip
