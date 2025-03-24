@@ -64,6 +64,53 @@ class EC2Manager:
 
         return ubuntu
     
+    def get_amazon_linux_ami(self, version: str, arch: str):
+        """
+        Gets the latest Amazon Linux AMI ID for a specified version and architecture.
+        
+        Args:
+            version (str): Amazon Linux version (e.g., "2" or "3")
+            arch (str): Architecture (e.g., "x86_64", "arm64")
+            
+        Returns:
+            aws.ec2.GetAmiResult: Resulting AMI lookup with id, arn, name and other properties
+            
+        Example:
+            ```python
+            ec2_manager = EC2Manager()
+            ami = ec2_manager.get_amazon_linux_ami("2", "x86_64")
+            ```
+        """
+        # Get amazon name based on version
+        if version == "2":
+            amazon_name = f"amzn2-ami-*-{arch}-gp2"
+        else:
+            amazon_name = f"al2023-ami-2023.*-{arch}"
+
+        # Dynamic Array Filter
+        filters = [
+            {
+                "name": "name",
+                "values": [amazon_name],
+            },
+            {
+                "name": "virtualization-type",
+                "values": ["hvm"],
+            },
+        ]
+
+        # Get the latest Amazon Linux AMI
+        amazon = aws.ec2.get_ami(most_recent=True,
+                                filters=filters,
+                                owners=["amazon"])
+
+        # Default Pulumi Export
+        pulumi.export(f"amazon_id_{version}_{arch}", amazon.id)
+        pulumi.export(f"amazon_arn_{version}_{arch}", amazon.arn)
+        pulumi.export(f"amazon_name_{version}_{arch}", amazon.name)
+
+        return amazon
+    
     def create_key_pair(self, name: str, public_key: str):
         """
         Creates an EC2 key pair using a provided public key.
