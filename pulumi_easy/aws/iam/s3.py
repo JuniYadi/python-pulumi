@@ -12,7 +12,7 @@ class IamRoleS3Manager(IamManager):
                             bucket_resources,
                             bucket_permissions=None,
                             description=None,
-                            services=["ec2.amazonaws.com"]):
+                            services=None):
         """
         Creates an IAM role and policy for EC2 instances to access S3 buckets.
 
@@ -32,6 +32,10 @@ class IamRoleS3Manager(IamManager):
         # Set default description if none is provided
         if description is None:
             description = f"Policy allowing EC2 access to S3 buckets ({name})"
+        
+        # Set default services if none are provided
+        if services is None:
+            services = ["ec2.amazonaws.com"]
         
         # Set default bucket permissions if none are provided
         if bucket_permissions is None:
@@ -61,9 +65,12 @@ class IamRoleS3Manager(IamManager):
         }
         
         # Call the base class method to create the IAM role and attach the policy
-        return self.create_iam_role_with_policy(
+        result = self.create_iam_role_with_policy(
             name=name,
             assume_role_services=services,
             policy_document=policy_document,
             description=description
         )
+        
+        # Return the result directly without attempting to access 'profile_name'
+        return result
