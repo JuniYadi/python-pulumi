@@ -196,54 +196,40 @@ class EC2Manager:
 
         return sg
 
-    def create_ubuntu_instance(self, name: str, storage: int, version: str, 
-                            arch: str, instance_type: str, ssh_key_name: str,
-                            security_group=None, iam_instance_profile=None,
-                            my_ipv4=None, my_ipv6=None):
+    def create_instance(self, name: str, ami_id: str, storage: int, instance_type: str, ssh_key_name: str,
+                    security_group=None, iam_instance_profile=None, my_ipv4=None, my_ipv6=None, 
+                    additional_tags=None, user_data=None, volume_type="gp3", root_device_name="/dev/sda1"):
         """
-        Creates an Ubuntu EC2 instance with specified parameters.
+        Creates a generic EC2 instance with specified parameters.
         
         Args:
             name (str): Name for the EC2 instance
+            ami_id (str): AMI ID for the instance
             storage (int): Root EBS volume size in GB
-            version (str): Ubuntu version (e.g., "22.04")
-            arch (str): Architecture (e.g., "amd64", "arm64")
             instance_type (str): EC2 instance type (e.g., "t2.micro", "t4g.nano")
             ssh_key_name (str): Name of the SSH key pair to use
-            security_group (aws.ec2.SecurityGroup, optional): Custom security group. 
+            security_group (aws.ec2.SecurityGroup, optional): Custom security group.
                 If not provided, a default one will be created.
-            iam_instance_profile (str, optional): The IAM instance profile to associate 
+            iam_instance_profile (str, optional): The IAM instance profile to associate
                 with the instance.
             my_ipv4 (str, optional): Your IPv4 address for restricted SSH access (e.g., "203.0.113.1/32")
             my_ipv6 (str, optional): Your IPv6 address for restricted SSH access (e.g., "2001:DB8::1/128")
+            additional_tags (dict, optional): Additional tags to apply to the instance
+            user_data (str, optional): User data script to run at launch time
+            volume_type (str, optional): EBS volume type, defaults to "gp3"
+            root_device_name (str, optional): Root device name, defaults to "/dev/sda1" 
+                but may be different for some AMIs
             
         Returns:
             aws.ec2.Instance: The created EC2 instance resource
-            
-        Example:
-            ```python
-            ec2_manager = EC2Manager()
-            # With IP restrictions
-            instance1 = ec2_manager.create_ubuntu_instance(
-                name="web-server",
-                storage=20,
-                version="22.04",
-                arch="amd64",
-                instance_type="t2.micro",
-                ssh_key_name="my-key-pair",
-                my_ipv4="203.0.113.1/32"
-            )
-            ```
         """
-        ami = self.get_ubuntu_ami(version, arch)
-        
         # Create a security group with IP restrictions if my_ipv4 or my_ipv6 are provided
         if my_ipv4 or my_ipv6:
             ingress_rules = []
             
             # Add SSH rule for IPv4 if provided
             if my_ipv4:
-                ipv4_cidr = f"{my_ipv4}/32"
+                ipv4_cidr = my_ipv4 if "/" in my_ipv4 else f"{my_ipv4}/32"
                 ingress_rules.append({
                     "protocol": "tcp",
                     "from_port": 22,
@@ -255,12 +241,12 @@ class EC2Manager:
             
             # Add SSH rule for IPv6 if provided
             if my_ipv6:
-                ipv6_cidr = f"{my_ipv6}/128"
+                ipv6_cidr = my_ipv6 if "/" in my_ipv6 else f"{my_ipv6}/128"
                 ingress_rules.append({
                     "protocol": "tcp",
                     "from_port": 22,
                     "to_port": 22,
-                    "ipv6_cidr_blocks": [f"{ipv6_cidr}"],
+                    "ipv6_cidr_blocks": [ipv6_cidr],
                     "description": "SSH access from my IPv6 address",
                 })
                 pulumi.export("ec2_ssh_ipv6", ipv6_cidr)
@@ -274,24 +260,45 @@ class EC2Manager:
         elif security_group is None:
             security_group = self.create_security_group(name)
         
+        # Set up base tags
+        tags = {"Name": name}
+        
+        # Add additional tags if provided
+        if additional_tags:
+            tags.update(additional_tags)
+            
+        # Log instance details for debugging
+        pulumi.log.info(f"Creating instance '{name}' with AMI ID: {ami_id}, type: {instance_type}")
+        
+        # Get AMI details to determine root device name
+        try:
+            ami_info = aws.ec2.get_ami(ami_ids=[ami_id], owners=["amazon", "099720109477", "self"])
+            if ami_info and ami_info.root_device_name:
+                root_device_name = ami_info.root_device_name
+                pulumi.log.info(f"Using root device name '{root_device_name}' from AMI")
+        except Exception as e:
+            pulumi.log.warn(f"Could not fetch AMI details, using default root device name '{root_device_name}': {str(e)}")
+        
         instance_args = {
             "instance_type": instance_type,
-            "ami": ami.id,
-            "ebs_block_devices": [{
-                "device_name": "/dev/sda1",
+            "ami": ami_id,
+            "root_block_device": {
                 "volume_size": storage,
-                "volume_type": "gp3",
-            }],
+                "volume_type": volume_type,
+                "delete_on_termination": True,
+            },
             "key_name": ssh_key_name,
             "security_groups": [security_group.name],
-            "tags": {
-                "Name": name,
-            }
+            "tags": tags
         }
         
         # Add IAM instance profile if provided
         if iam_instance_profile:
             instance_args["iam_instance_profile"] = iam_instance_profile
+            
+        # Add user data if provided
+        if user_data:
+            instance_args["user_data"] = user_data
         
         instance = aws.ec2.Instance(name, **instance_args)
 
