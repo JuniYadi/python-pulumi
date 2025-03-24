@@ -92,7 +92,8 @@ class EC2Manager:
 
         return key
 
-    def create_security_group(self, name: str, description: str = "Security group for SSH access"):
+    def create_security_group(self, name: str, description: str = "Security group for SSH access",
+                              ingress=None, egress=None):
         """
         Create a security group that allows SSH access on port 22.
         
@@ -110,27 +111,35 @@ class EC2Manager:
             sg = ec2_manager.create_security_group("web-server-sg", "Web server security group")
             ```
         """
+        
+        if ingress is None:
+            ingress = [
+                        {
+                            "protocol": "tcp",
+                            "from_port": 22,
+                            "to_port": 22,
+                            "cidr_blocks": ["0.0.0.0/0"],
+                            "description": "SSH access from anywhere",
+                        },
+                    ]
+            
+        if egress is None:
+            egress = [
+                        {
+                            "protocol": "-1",  # All protocols
+                            "from_port": 0,
+                            "to_port": 0,
+                            "cidr_blocks": ["0.0.0.0/0"],
+                            "description": "Allow all outbound traffic",
+                        },
+                    ]
+        
+        
         sg = aws.ec2.SecurityGroup(f"security_group_{name}",
                                 name=name,
                                 description=description,
-                                ingress=[
-                                    {
-                                        "protocol": "tcp",
-                                        "from_port": 22,
-                                        "to_port": 22,
-                                        "cidr_blocks": ["0.0.0.0/0"],
-                                        "description": "SSH access from anywhere",
-                                    },
-                                ],
-                                egress=[
-                                    {
-                                        "protocol": "-1",  # All protocols
-                                        "from_port": 0,
-                                        "to_port": 0,
-                                        "cidr_blocks": ["0.0.0.0/0"],
-                                        "description": "Allow all outbound traffic",
-                                    },
-                                ],
+                                ingress=ingress,
+                                egress=egress,
                                 tags={
                                     "Name": name,
                                 })
@@ -141,7 +150,9 @@ class EC2Manager:
         return sg
 
     def create_ubuntu_instance(self, name: str, storage: int, version: str, 
-                            arch: str, instance_type: str, ssh_key_name: str):
+                            arch: str, instance_type: str, ssh_key_name: str,
+                            security_group=None, iam_instance_profile=None,
+                            my_ipv4=None, my_ipv6=None):
         """
         Creates an Ubuntu EC2 instance with specified parameters.
         
@@ -152,6 +163,12 @@ class EC2Manager:
             arch (str): Architecture (e.g., "amd64", "arm64")
             instance_type (str): EC2 instance type (e.g., "t2.micro", "t4g.nano")
             ssh_key_name (str): Name of the SSH key pair to use
+            security_group (aws.ec2.SecurityGroup, optional): Custom security group. 
+                If not provided, a default one will be created.
+            iam_instance_profile (str, optional): The IAM instance profile to associate 
+                with the instance.
+            my_ipv4 (str, optional): Your IPv4 address for restricted SSH access (e.g., "203.0.113.1/32")
+            my_ipv6 (str, optional): Your IPv6 address for restricted SSH access (e.g., "2001:DB8::1/128")
             
         Returns:
             aws.ec2.Instance: The created EC2 instance resource
@@ -159,32 +176,77 @@ class EC2Manager:
         Example:
             ```python
             ec2_manager = EC2Manager()
-            instance = ec2_manager.create_ubuntu_instance(
+            # With IP restrictions
+            instance1 = ec2_manager.create_ubuntu_instance(
                 name="web-server",
                 storage=20,
                 version="22.04",
                 arch="amd64",
                 instance_type="t2.micro",
-                ssh_key_name="my-key-pair"
+                ssh_key_name="my-key-pair",
+                my_ipv4="203.0.113.1/32"
             )
             ```
         """
         ami = self.get_ubuntu_ami(version, arch)
-        security_group = self.create_security_group(name)
         
-        instance = aws.ec2.Instance(name,
-                                    instance_type=instance_type,
-                                    ami=ami.id,
-                                    ebs_block_devices=[{
-                                        "device_name": "/dev/sda1",
-                                        "volume_size": storage,
-                                        "volume_type": "gp3",
-                                    }],
-                                    key_name=ssh_key_name,
-                                    security_groups=[security_group.name],
-                                    tags={
-                                        "Name": name,
-                                    })
+        # Create a security group with IP restrictions if my_ipv4 or my_ipv6 are provided
+        if my_ipv4 or my_ipv6:
+            ingress_rules = []
+            
+            # Add SSH rule for IPv4 if provided
+            if my_ipv4:
+                ipv4_cidr = f"{my_ipv4}/32"
+                ingress_rules.append({
+                    "protocol": "tcp",
+                    "from_port": 22,
+                    "to_port": 22,
+                    "cidr_blocks": [ipv4_cidr],
+                    "description": "SSH access from my IPv4 address",
+                })
+                pulumi.export("ec2_ssh_ipv4", ipv4_cidr)
+            
+            # Add SSH rule for IPv6 if provided
+            if my_ipv6:
+                ipv6_cidr = f"{my_ipv6}/128"
+                ingress_rules.append({
+                    "protocol": "tcp",
+                    "from_port": 22,
+                    "to_port": 22,
+                    "ipv6_cidr_blocks": [f"{ipv6_cidr}"],
+                    "description": "SSH access from my IPv6 address",
+                })
+                pulumi.export("ec2_ssh_ipv6", ipv6_cidr)
+            
+            security_group = self.create_security_group(
+                f"{name}-restricted",
+                description=f"Security group with restricted SSH access for {name}",
+                ingress=ingress_rules
+            )
+        # Use provided security group or create a default one
+        elif security_group is None:
+            security_group = self.create_security_group(name)
+        
+        instance_args = {
+            "instance_type": instance_type,
+            "ami": ami.id,
+            "ebs_block_devices": [{
+                "device_name": "/dev/sda1",
+                "volume_size": storage,
+                "volume_type": "gp3",
+            }],
+            "key_name": ssh_key_name,
+            "security_groups": [security_group.name],
+            "tags": {
+                "Name": name,
+            }
+        }
+        
+        # Add IAM instance profile if provided
+        if iam_instance_profile:
+            instance_args["iam_instance_profile"] = iam_instance_profile
+        
+        instance = aws.ec2.Instance(name, **instance_args)
 
         pulumi.export(f"ec2_{name}_id", instance.id)
         pulumi.export(f"ec2_{name}_public_ip", instance.public_ip)
