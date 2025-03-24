@@ -25,6 +25,65 @@ uv add pulumi-easy
 - Pulumi CLI
 - AWS credentials configured
 
+## Getting Started
+
+1. Install Pulumi CLI by following the [official guide](https://www.pulumi.com/docs/get-started/install/)
+
+```bash
+# MacOS
+brew install pulumi/tap/pulumi
+
+# Linux
+curl -fsSL https://get.pulumi.com | sh
+
+# Windows
+# Please refer to the official guide
+```
+
+2. Configure AWS credentials using the `aws configure` command
+
+```bash
+aws configure
+```
+
+3. Initialize a new Pulumi project
+
+```bash
+pulumi new aws-python
+```
+
+4. Install the `pulumi-easy` package
+
+```bash
+pip install pulumi-easy
+```
+
+5. Start using the library in your Pulumi program
+
+```python
+from pulumi_easy.aws.iam.s3 import IamRoleS3Manager
+
+# Initialize the manager
+iam_manager = IamRoleS3Manager()
+
+# Create an IAM role for EC2 to access specific S3 buckets
+role = iam_manager.create_iam_ec2_s3(
+    name="my-ec2-s3-role",
+    bucket_resources=[
+        "arn:aws:s3:::my-bucket/*",
+        "arn:aws:s3:::my-bucket"
+    ]
+)
+```
+
+### Optional Dependencies
+
+By default, the library does not include any dependencies. However, you can install additional packages to enable more features:
+
+| Package | Description |
+|---------|-------------|
+| `requests` | Required for `get_my_ip()` function in `pulumi_easy.utils.ip` |
+
 ## Benefits
 
 - **Simplified Syntax**: Create AWS resources with less code and cleaner APIs
