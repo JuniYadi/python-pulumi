@@ -92,36 +92,6 @@ By default, the library does not include any dependencies. However, you can inst
 - **Modular Design**: Use only what you need from the library
 - **Production-Ready**: Designed to be used in real-world projects
 
-## Features
-
-The library currently supports the following AWS components:
-
-### IAM Management
-
-#### IamManager Class
-
-| Method | Description |
-|--------|-------------|
-| `get_assume_role_policy(service_identifiers)` | Creates an assume role policy document for specified AWS services |
-| `create_iam_role_with_policy(name, assume_role_services, policy_document, description)` | Creates an IAM role with the specified policy and assume role configuration |
-
-#### IamRoleS3Manager Class
-
-| Method | Description |
-|--------|-------------|
-| `create_iam_ec2_s3(name, bucket_resources, bucket_permissions, description, services)` | Creates an IAM role and policy for EC2 instances to access S3 buckets |
-
-### EC2 Management
-
-#### EC2Manager Class
-
-| Method | Description |
-|--------|-------------|
-| `get_ubuntu_ami(version, arch)` | Gets the latest Ubuntu AMI ID for a specified version and architecture |
-| `create_key_pair(name, public_key)` | Creates an EC2 key pair using a provided public key |
-| `create_security_group(name, description)` | Creates a security group with SSH access |
-| `create_ubuntu_instance(name, storage, version, arch, instance_type, ssh_key_name)` | Creates an Ubuntu EC2 instance with specified parameters |
-
 ## Usage Examples
 
 ### Create an IAM Role for EC2 to Access S3
