@@ -7,3 +7,4 @@ requirements.txt
 main.py
 __main__.py
 uv.lock
+pulumi_easy.egg-info
