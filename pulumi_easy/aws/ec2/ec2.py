@@ -64,6 +64,53 @@ class EC2Manager:
 
         return ubuntu
     
+    def get_amazon_linux_ami(self, version: str, arch: str):
+        """
+        Gets the latest Amazon Linux AMI ID for a specified version and architecture.
+        
+        Args:
+            version (str): Amazon Linux version (e.g., "2" or "3")
+            arch (str): Architecture (e.g., "x86_64", "arm64")
+            
+        Returns:
+            aws.ec2.GetAmiResult: Resulting AMI lookup with id, arn, name and other properties
+            
+        Example:
+            ```python
+            ec2_manager = EC2Manager()
+            ami = ec2_manager.get_amazon_linux_ami("2", "x86_64")
+            ```
+        """
+        # Get amazon name based on version
+        if version == "2":
+            amazon_name = f"amzn2-ami-*-{arch}-gp2"
+        else:
+            amazon_name = f"al2023-ami-2023.*-{arch}"
+
+        # Dynamic Array Filter
+        filters = [
+            {
+                "name": "name",
+                "values": [amazon_name],
+            },
+            {
+                "name": "virtualization-type",
+                "values": ["hvm"],
+            },
+        ]
+
+        # Get the latest Amazon Linux AMI
+        amazon = aws.ec2.get_ami(most_recent=True,
+                                filters=filters,
+                                owners=["amazon"])
+
+        # Default Pulumi Export
+        pulumi.export(f"amazon_id_{version}_{arch}", amazon.id)
+        pulumi.export(f"amazon_arn_{version}_{arch}", amazon.arn)
+        pulumi.export(f"amazon_name_{version}_{arch}", amazon.name)
+
+        return amazon
+    
     def create_key_pair(self, name: str, public_key: str):
         """
         Creates an EC2 key pair using a provided public key.
@@ -92,7 +139,8 @@ class EC2Manager:
 
         return key
 
-    def create_security_group(self, name: str, description: str = "Security group for SSH access"):
+    def create_security_group(self, name: str, description: str = "Security group for SSH access",
+                              ingress=None, egress=None):
         """
         Create a security group that allows SSH access on port 22.
         
@@ -110,27 +158,35 @@ class EC2Manager:
             sg = ec2_manager.create_security_group("web-server-sg", "Web server security group")
             ```
         """
+        
+        if ingress is None:
+            ingress = [
+                        {
+                            "protocol": "tcp",
+                            "from_port": 22,
+                            "to_port": 22,
+                            "cidr_blocks": ["0.0.0.0/0"],
+                            "description": "SSH access from anywhere",
+                        },
+                    ]
+            
+        if egress is None:
+            egress = [
+                        {
+                            "protocol": "-1",  # All protocols
+                            "from_port": 0,
+                            "to_port": 0,
+                            "cidr_blocks": ["0.0.0.0/0"],
+                            "description": "Allow all outbound traffic",
+                        },
+                    ]
+        
+        
         sg = aws.ec2.SecurityGroup(f"security_group_{name}",
                                 name=name,
                                 description=description,
-                                ingress=[
-                                    {
-                                        "protocol": "tcp",
-                                        "from_port": 22,
-                                        "to_port": 22,
-                                        "cidr_blocks": ["0.0.0.0/0"],
-                                        "description": "SSH access from anywhere",
-                                    },
-                                ],
-                                egress=[
-                                    {
-                                        "protocol": "-1",  # All protocols
-                                        "from_port": 0,
-                                        "to_port": 0,
-                                        "cidr_blocks": ["0.0.0.0/0"],
-                                        "description": "Allow all outbound traffic",
-                                    },
-                                ],
+                                ingress=ingress,
+                                egress=egress,
                                 tags={
                                     "Name": name,
                                 })
@@ -140,51 +196,111 @@ class EC2Manager:
 
         return sg
 
-    def create_ubuntu_instance(self, name: str, storage: int, version: str, 
-                            arch: str, instance_type: str, ssh_key_name: str):
+    def create_instance(self, name: str, ami_id: str, storage: int, instance_type: str, ssh_key_name: str,
+                    security_group=None, iam_instance_profile=None, my_ipv4=None, my_ipv6=None, 
+                    additional_tags=None, user_data=None, volume_type="gp3", root_device_name="/dev/sda1"):
         """
-        Creates an Ubuntu EC2 instance with specified parameters.
+        Creates a generic EC2 instance with specified parameters.
         
         Args:
             name (str): Name for the EC2 instance
+            ami_id (str): AMI ID for the instance
             storage (int): Root EBS volume size in GB
-            version (str): Ubuntu version (e.g., "22.04")
-            arch (str): Architecture (e.g., "amd64", "arm64")
             instance_type (str): EC2 instance type (e.g., "t2.micro", "t4g.nano")
             ssh_key_name (str): Name of the SSH key pair to use
+            security_group (aws.ec2.SecurityGroup, optional): Custom security group.
+                If not provided, a default one will be created.
+            iam_instance_profile (str, optional): The IAM instance profile to associate
+                with the instance.
+            my_ipv4 (str, optional): Your IPv4 address for restricted SSH access (e.g., "203.0.113.1/32")
+            my_ipv6 (str, optional): Your IPv6 address for restricted SSH access (e.g., "2001:DB8::1/128")
+            additional_tags (dict, optional): Additional tags to apply to the instance
+            user_data (str, optional): User data script to run at launch time
+            volume_type (str, optional): EBS volume type, defaults to "gp3"
+            root_device_name (str, optional): Root device name, defaults to "/dev/sda1" 
+                but may be different for some AMIs
             
         Returns:
             aws.ec2.Instance: The created EC2 instance resource
-            
-        Example:
-            ```python
-            ec2_manager = EC2Manager()
-            instance = ec2_manager.create_ubuntu_instance(
-                name="web-server",
-                storage=20,
-                version="22.04",
-                arch="amd64",
-                instance_type="t2.micro",
-                ssh_key_name="my-key-pair"
-            )
-            ```
         """
-        ami = self.get_ubuntu_ami(version, arch)
-        security_group = self.create_security_group(name)
+        # Create a security group with IP restrictions if my_ipv4 or my_ipv6 are provided
+        if my_ipv4 or my_ipv6:
+            ingress_rules = []
+            
+            # Add SSH rule for IPv4 if provided
+            if my_ipv4:
+                ipv4_cidr = my_ipv4 if "/" in my_ipv4 else f"{my_ipv4}/32"
+                ingress_rules.append({
+                    "protocol": "tcp",
+                    "from_port": 22,
+                    "to_port": 22,
+                    "cidr_blocks": [ipv4_cidr],
+                    "description": "SSH access from my IPv4 address",
+                })
+                pulumi.export("ec2_ssh_ipv4", ipv4_cidr)
+            
+            # Add SSH rule for IPv6 if provided
+            if my_ipv6:
+                ipv6_cidr = my_ipv6 if "/" in my_ipv6 else f"{my_ipv6}/128"
+                ingress_rules.append({
+                    "protocol": "tcp",
+                    "from_port": 22,
+                    "to_port": 22,
+                    "ipv6_cidr_blocks": [ipv6_cidr],
+                    "description": "SSH access from my IPv6 address",
+                })
+                pulumi.export("ec2_ssh_ipv6", ipv6_cidr)
+            
+            security_group = self.create_security_group(
+                f"{name}-restricted",
+                description=f"Security group with restricted SSH access for {name}",
+                ingress=ingress_rules
+            )
+        # Use provided security group or create a default one
+        elif security_group is None:
+            security_group = self.create_security_group(name)
         
-        instance = aws.ec2.Instance(name,
-                                    instance_type=instance_type,
-                                    ami=ami.id,
-                                    ebs_block_devices=[{
-                                        "device_name": "/dev/sda1",
-                                        "volume_size": storage,
-                                        "volume_type": "gp3",
-                                    }],
-                                    key_name=ssh_key_name,
-                                    security_groups=[security_group.name],
-                                    tags={
-                                        "Name": name,
-                                    })
+        # Set up base tags
+        tags = {"Name": name}
+        
+        # Add additional tags if provided
+        if additional_tags:
+            tags.update(additional_tags)
+            
+        # Log instance details for debugging
+        pulumi.log.info(f"Creating instance '{name}' with AMI ID: {ami_id}, type: {instance_type}")
+        
+        # Get AMI details to determine root device name
+        try:
+            ami_info = aws.ec2.get_ami(ami_ids=[ami_id], owners=["amazon", "099720109477", "self"])
+            if ami_info and ami_info.root_device_name:
+                root_device_name = ami_info.root_device_name
+                pulumi.log.info(f"Using root device name '{root_device_name}' from AMI")
+        except Exception as e:
+            pulumi.log.warn(f"Could not fetch AMI details, using default root device name '{root_device_name}': {str(e)}")
+        
+        instance_args = {
+            "instance_type": instance_type,
+            "ami": ami_id,
+            "root_block_device": {
+                "volume_size": storage,
+                "volume_type": volume_type,
+                "delete_on_termination": True,
+            },
+            "key_name": ssh_key_name,
+            "security_groups": [security_group.name],
+            "tags": tags
+        }
+        
+        # Add IAM instance profile if provided
+        if iam_instance_profile:
+            instance_args["iam_instance_profile"] = iam_instance_profile
+            
+        # Add user data if provided
+        if user_data:
+            instance_args["user_data"] = user_data
+        
+        instance = aws.ec2.Instance(name, **instance_args)
 
         pulumi.export(f"ec2_{name}_id", instance.id)
         pulumi.export(f"ec2_{name}_public_ip", instance.public_ip)

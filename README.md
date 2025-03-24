@@ -102,8 +102,8 @@ instance = ec2_manager.create_ubuntu_instance(
     name="web-server",
     storage=20,                  # 20 GB root volume
     version="22.04",             # Ubuntu version
-    arch="amd64",                # Architecture
-    instance_type="t2.micro",    # Instance type
+    arch="arm64",                # Architecture
+    instance_type="t4g.nano",    # Instance type
     ssh_key_name=key_pair.key_name
 )
 ```
