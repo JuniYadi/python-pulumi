@@ -198,7 +198,8 @@ class EC2Manager:
 
     def create_instance(self, name: str, ami_id: str, storage: int, instance_type: str, ssh_key_name: str,
                     security_group=None, iam_instance_profile=None, my_ipv4=None, my_ipv6=None, 
-                    additional_tags=None, user_data=None, volume_type="gp3", root_device_name="/dev/sda1"):
+                    additional_tags=None, user_data=None, volume_type="gp3", root_device_name="/dev/sda1",
+                    subnet_id=None, vpc_id=None):
         """
         Creates a generic EC2 instance with specified parameters.
         
@@ -219,10 +220,17 @@ class EC2Manager:
             volume_type (str, optional): EBS volume type, defaults to "gp3"
             root_device_name (str, optional): Root device name, defaults to "/dev/sda1" 
                 but may be different for some AMIs
+            subnet_id (str, optional): ID of the subnet to launch the instance in.
+                If provided, the instance will be launched in a VPC
+            vpc_id (str, optional): ID of the VPC where security group should be created.
+                Required when subnet_id is provided and security_group is not
             
         Returns:
             aws.ec2.Instance: The created EC2 instance resource
         """
+        # Check if we're working with a VPC
+        is_vpc = subnet_id is not None
+        
         # Create a security group with IP restrictions if my_ipv4 or my_ipv6 are provided
         if my_ipv4 or my_ipv6:
             ingress_rules = []
@@ -251,14 +259,81 @@ class EC2Manager:
                 })
                 pulumi.export("ec2_ssh_ipv6", ipv6_cidr)
             
-            security_group = self.create_security_group(
-                f"{name}-restricted",
-                description=f"Security group with restricted SSH access for {name}",
-                ingress=ingress_rules
-            )
+            # If we're in a VPC, we need to create a VPC security group
+            if is_vpc:
+                if vpc_id is None:
+                    pulumi.log.warn("vpc_id is required when creating a security group for an instance in a VPC. Attempting to extract VPC ID from subnet.")
+                    # Try to get VPC ID from the subnet
+                    try:
+                        subnet_info = aws.ec2.get_subnet(id=subnet_id)
+                        vpc_id = subnet_info.vpc_id
+                    except Exception as e:
+                        pulumi.log.error(f"Could not determine VPC ID from subnet: {str(e)}")
+                        raise ValueError("vpc_id is required when creating a security group for an instance in a VPC")
+                
+                # Create a VPC security group
+                sg_name = f"{name}-vpc-restricted"
+                security_group = aws.ec2.SecurityGroup(
+                    f"security_group_{sg_name}",
+                    name=sg_name,
+                    description=f"Security group with restricted SSH access for {name}",
+                    vpc_id=vpc_id,
+                    ingress=ingress_rules,
+                    egress=[{
+                        "protocol": "-1",  # All protocols
+                        "from_port": 0,
+                        "to_port": 0,
+                        "cidr_blocks": ["0.0.0.0/0"],
+                        "description": "Allow all outbound traffic",
+                    }],
+                    tags={"Name": sg_name}
+                )
+            else:
+                # Create a classic security group
+                security_group = self.create_security_group(
+                    f"{name}-restricted",
+                    description=f"Security group with restricted SSH access for {name}",
+                    ingress=ingress_rules
+                )
         # Use provided security group or create a default one
         elif security_group is None:
-            security_group = self.create_security_group(name)
+            if is_vpc:
+                if vpc_id is None:
+                    pulumi.log.warn("vpc_id is required when creating a security group for an instance in a VPC. Attempting to extract VPC ID from subnet.")
+                    # Try to get VPC ID from the subnet
+                    try:
+                        subnet_info = aws.ec2.get_subnet(id=subnet_id)
+                        vpc_id = subnet_info.vpc_id
+                    except Exception as e:
+                        pulumi.log.error(f"Could not determine VPC ID from subnet: {str(e)}")
+                        raise ValueError("vpc_id is required when creating a security group for an instance in a VPC")
+                
+                # Create a VPC security group
+                sg_name = f"{name}-vpc"
+                security_group = aws.ec2.SecurityGroup(
+                    f"security_group_{sg_name}",
+                    name=sg_name,
+                    description=f"Security group for {name}",
+                    vpc_id=vpc_id,
+                    ingress=[{
+                        "protocol": "tcp",
+                        "from_port": 22,
+                        "to_port": 22,
+                        "cidr_blocks": ["0.0.0.0/0"],
+                        "description": "SSH access from anywhere",
+                    }],
+                    egress=[{
+                        "protocol": "-1",  # All protocols
+                        "from_port": 0,
+                        "to_port": 0,
+                        "cidr_blocks": ["0.0.0.0/0"],
+                        "description": "Allow all outbound traffic",
+                    }],
+                    tags={"Name": sg_name}
+                )
+            else:
+                # Create a classic security group
+                security_group = self.create_security_group(name)
         
         # Set up base tags
         tags = {"Name": name}
@@ -279,6 +354,7 @@ class EC2Manager:
         except Exception as e:
             pulumi.log.warn(f"Could not fetch AMI details, using default root device name '{root_device_name}': {str(e)}")
         
+        # Configure instance arguments differently based on whether we're using a VPC
         instance_args = {
             "instance_type": instance_type,
             "ami": ami_id,
@@ -288,9 +364,15 @@ class EC2Manager:
                 "delete_on_termination": True,
             },
             "key_name": ssh_key_name,
-            "security_groups": [security_group.name],
             "tags": tags
         }
+        
+        # Subnet ID is provided for VPC instances
+        if is_vpc:
+            instance_args["subnet_id"] = subnet_id
+            instance_args["vpc_security_group_ids"] = [security_group.id]
+        else:
+            instance_args["security_groups"] = [security_group.name]
         
         # Add IAM instance profile if provided
         if iam_instance_profile:

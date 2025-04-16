@@ -10,7 +10,8 @@ class EC2AL(EC2Manager):
     def create_amazon_linux_instance(self, name: str, storage: int, version: str, 
                             arch: str, instance_type: str, ssh_key_name: str,
                             security_group=None, iam_instance_profile=None,
-                            my_ipv4=None, my_ipv6=None, additional_tags=None, user_data=None):
+                            my_ipv4=None, my_ipv6=None, additional_tags=None, user_data=None,
+                            subnet_id=None, vpc_id=None):
         """
         Creates an Amazon Linux EC2 instance with specified parameters.
         
@@ -29,6 +30,10 @@ class EC2AL(EC2Manager):
             my_ipv6 (str, optional): Your IPv6 address for restricted SSH access (e.g., "2001:DB8::1/128")
             additional_tags (dict, optional): Additional tags to apply to the instance
             user_data (str, optional): User data script to run at launch time
+            subnet_id (str, optional): ID of the subnet to launch the instance in.
+                If provided, the instance will be launched in a VPC
+            vpc_id (str, optional): ID of the VPC where security group should be created.
+                Required when subnet_id is provided and security_group is not
             
         Returns:
             aws.ec2.Instance: The created EC2 instance resource
@@ -36,13 +41,26 @@ class EC2AL(EC2Manager):
         Example:
             ```python
             ec2_al = EC2AL()
-            instance = ec2_al.create_amazon_linux_instance(
+            # Standard instance
+            instance1 = ec2_al.create_amazon_linux_instance(
                 name="app-server",
                 storage=20,
                 version="2",
                 arch="x86_64",
                 instance_type="t2.micro",
                 ssh_key_name="my-key-pair"
+            )
+            
+            # VPC instance in a specific subnet
+            instance2 = ec2_al.create_amazon_linux_instance(
+                name="vpc-app-server",
+                storage=20,
+                version="3",
+                arch="arm64",
+                instance_type="t4g.nano",
+                ssh_key_name="my-key-pair",
+                subnet_id=vpc.private_subnets[0].id,
+                vpc_id=vpc.vpc.id
             )
             ```
         """
@@ -83,5 +101,7 @@ class EC2AL(EC2Manager):
             my_ipv6=my_ipv6,
             additional_tags=os_tags,
             user_data=user_data,
-            root_device_name=root_device
+            root_device_name=root_device,
+            subnet_id=subnet_id,
+            vpc_id=vpc_id
         )

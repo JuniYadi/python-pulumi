@@ -13,8 +13,7 @@ from . import utils
 from .aws.ec2.ec2 import EC2Manager
 from .aws.ec2.ec2_ubuntu import EC2Ubuntu
 from .aws.ec2.ec2_al import EC2AL
+from .aws.ec2.vpc import EC2VPC
 from .aws.iam.iam import IamManager
 from .aws.iam.s3 import IamRoleS3Manager
-from .utils.ip import get_my_ip
-
-__version__ = "0.4.0"
+from .utils.ip import get_my_ip, ipv4_cidr_slice, calculate_subnet_info, subdivide_cidr, subdivide_ipv6_cidr
